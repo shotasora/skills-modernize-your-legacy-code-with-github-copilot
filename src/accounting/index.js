@@ -1,110 +1,95 @@
-// Node.js版 学生アカウント管理アプリケーション
-// COBOLアプリのビジネスロジック・データフロー・メニューを再現
 
+// Node.js版 学校会計システムアプリ（COBOLロジック移植）
 const readline = require('readline');
 const fs = require('fs');
-const DATA_FILE = './accounts.json';
+const DATA_FILE = './balance.json';
 
-// データ永続化用ファイルの初期化
-function loadAccounts() {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-}
-function saveAccounts(accounts) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(accounts, null, 2), 'utf8');
-}
-
-// メニュー表示
-function showMenu() {
-  console.log('\n--- 学生アカウント管理システム ---');
-  console.log('1. 新規登録');
-  console.log('2. 情報照会');
-  console.log('3. 情報更新');
-  console.log('4. アカウント削除');
-  console.log('5. 終了');
-}
-
-// 必須項目チェック
-function validateInput(account) {
-  if (!account.id || !account.name || !account.studentNo) {
-    console.log('エラー: 学生ID・氏名・学籍番号は必須です。');
-    return false;
+// データ永続化
+function loadBalance() {
+  if (!fs.existsSync(DATA_FILE)) return 1000.00; // 初期残高
+  try {
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    return typeof data.balance === 'number' ? data.balance : 1000.00;
+  } catch {
+    return 1000.00;
   }
-  return true;
+}
+function saveBalance(balance) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify({ balance }), 'utf8');
 }
 
-// メイン処理
-async function main() {
+async function mainMenu() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  let accounts = loadAccounts();
-  while (true) {
-    showMenu();
-    const choice = await question(rl, '操作を選択してください: ');
-    if (choice === '1') {
-      // 新規登録
-      const id = await question(rl, '学生ID: ');
-      if (accounts.find(a => a.id === id)) {
-        console.log('エラー: この学生IDは既に登録されています。');
-        continue;
-      }
-      const name = await question(rl, '氏名: ');
-      const studentNo = await question(rl, '学籍番号: ');
-      const account = { id, name, studentNo };
-      if (!validateInput(account)) continue;
-      accounts.push(account);
-      saveAccounts(accounts);
-      console.log('登録が完了しました。');
-    } else if (choice === '2') {
-      // 情報照会
-      const id = await question(rl, '照会する学生ID: ');
-      const account = accounts.find(a => a.id === id);
-      if (!account) {
-        console.log('エラー: 学生IDが見つかりません。');
-      } else {
-        console.log(`ID: ${account.id}\n氏名: ${account.name}\n学籍番号: ${account.studentNo}`);
-      }
-    } else if (choice === '3') {
-      // 情報更新
-      const id = await question(rl, '更新する学生ID: ');
-      const idx = accounts.findIndex(a => a.id === id);
-      if (idx === -1) {
-        console.log('エラー: 学生IDが見つかりません。');
-        continue;
-      }
-      const name = await question(rl, '新しい氏名: ');
-      const studentNo = await question(rl, '新しい学籍番号: ');
-      const updated = { id, name, studentNo };
-      if (!validateInput(updated)) continue;
-      accounts[idx] = updated;
-      saveAccounts(accounts);
-      console.log('更新が完了しました。');
-    } else if (choice === '4') {
-      // アカウント削除
-      const id = await question(rl, '削除する学生ID: ');
-      const idx = accounts.findIndex(a => a.id === id);
-      if (idx === -1) {
-        console.log('エラー: 学生IDが見つかりません。');
-        continue;
-      }
-      const confirm = await question(rl, '本当に削除しますか？ (yes/no): ');
-      if (confirm.toLowerCase() === 'yes') {
-        accounts.splice(idx, 1);
-        saveAccounts(accounts);
-        console.log('削除が完了しました。');
-      } else {
-        console.log('削除をキャンセルしました。');
-      }
-    } else if (choice === '5') {
-      rl.close();
-      break;
-    } else {
-      console.log('無効な選択です。');
+  let continueFlag = true;
+  while (continueFlag) {
+  console.log('--------------------------------');
+  console.log('Account Management System');
+  console.log('1. View Balance');
+  console.log('2. Credit Account');
+  console.log('3. Debit Account');
+  console.log('4. Exit');
+  console.log('--------------------------------');
+  const answer = await question(rl, 'Enter your choice (1-4): ');
+    switch (answer.trim()) {
+      case '1':
+  await viewBalance();
+        break;
+      case '2':
+        await creditAccount(rl);
+        break;
+      case '3':
+        await debitAccount(rl);
+        break;
+      case '4':
+        continueFlag = false;
+        break;
+      default:
+        console.log('1-4を選択してください。');
     }
   }
+  rl.close();
+  console.log('終了します。');
 }
 
 function question(rl, q) {
   return new Promise(resolve => rl.question(q, resolve));
 }
 
-main();
+async function viewBalance() {
+  const balance = loadBalance();
+  console.log(`Current balance: ${balance.toFixed(2)}`);
+}
+
+async function creditAccount(rl) {
+  let balance = loadBalance();
+  const input = await question(rl, 'Enter credit amount: ');
+  const amount = parseFloat(input);
+  if (isNaN(amount) || amount <= 0) {
+    console.log('Please enter a valid amount.');
+    return;
+  }
+  balance += amount;
+  saveBalance(balance);
+  console.log(`Amount credited. New balance: ${balance.toFixed(2)}`);
+}
+
+async function debitAccount(rl) {
+  let balance = loadBalance();
+  const input = await question(rl, 'Enter debit amount: ');
+  const amount = parseFloat(input);
+  if (isNaN(amount) || amount <= 0) {
+    console.log('Please enter a valid amount.');
+    return;
+  }
+  if (balance < amount) {
+    console.log('Insufficient funds for this debit.');
+    return;
+  }
+  balance -= amount;
+  saveBalance(balance);
+  console.log(`Amount debited. New balance: ${balance.toFixed(2)}`);
+}
+
+if (require.main === module) {
+  mainMenu();
+}
